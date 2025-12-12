@@ -1,4 +1,4 @@
-name: Build ZIP
+name: Build ZIP Artifact (debug)
 
 on:
   workflow_dispatch:
@@ -6,27 +6,63 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build_zip:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Remove heavy folders
+      - name: Runner info
+        run: |
+          echo "Runner: $RUNNER_OS"
+          uname -a
+          echo "Disk usage before:"
+          df -h
+
+      - name: Show repo files (root)
+        run: |
+          echo "Listing repo root:"
+          ls -la
+          echo "Listing frontend:"
+          ls -la frontend || true
+          echo "Listing backend:"
+          ls -la backend || true
+          echo "Listing worker:"
+          ls -la worker || true
+
+      - name: Ensure zip installed
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y zip || true
+          which zip || echo "zip not found"
+
+      - name: Clean heavy folders
         run: |
           rm -rf frontend/node_modules || true
           rm -rf backend/.venv || true
           rm -rf **/__pycache__ || true
+          echo "Disk usage after cleanup:"
+          df -h
+          du -sh . || true
 
-      - name: Create ZIP
+      - name: Create zip and verify
         run: |
-          zip -r lifeos_full.zip . -x "*.git/*" "**/node_modules/*" "**/.venv/*"
+          set -x
+          zip -r lifeos_full.zip . -x "**/.git/*" "**/node_modules/*" "**/.venv/*" "**/__pycache__/*" || (echo "zip command failed"; ls -la .; exit 2)
+          echo "Zip created, size:"
+          ls -lh lifeos_full.zip || true
+          echo "Contents (top-level):"
+          unzip -l lifeos_full.zip | head -n 40 || true
 
-      - name: Release ZIP
-        uses: softprops/action-gh-release@v1
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: "release-${{ github.run_id }}"
-          name: "LifeOS Release ${{ github.run_id }}"
-          files: lifeos_full.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: lifeos_full
+          path: ./lifeos_full.zip
+
+      - name: Final disk and file info
+        run: |
+          echo "Final disk usage:"
+          df -h
+          echo "Files in workspace:"
+          ls -la
