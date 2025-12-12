@@ -1,0 +1,32 @@
+name: Build ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove heavy folders
+        run: |
+          rm -rf frontend/node_modules || true
+          rm -rf backend/.venv || true
+          rm -rf **/__pycache__ || true
+
+      - name: Create ZIP
+        run: |
+          zip -r lifeos_full.zip . -x "*.git/*" "**/node_modules/*" "**/.venv/*"
+
+      - name: Release ZIP
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "release-${{ github.run_id }}"
+          name: "LifeOS Release ${{ github.run_id }}"
+          files: lifeos_full.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
